@@ -1,0 +1,14 @@
+// A project that reads its settings with cpm-json, the way a user's would. CI runs `cpm test` here.
+{
+  "name": "consumer",
+  "version": "0.1.0",
+  "std": "c++20",
+  "type": "static-lib",
+  "dependencies": {
+    // A user's project would have "cpm-json": "^0.1.0" from `cpm install cpm-json`.
+    "cpm-json": "file:../.."
+  },
+  "devDependencies": {
+    "cpm-test": "^0.1.0"
+  }
+}

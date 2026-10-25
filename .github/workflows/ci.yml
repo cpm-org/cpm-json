@@ -1,0 +1,108 @@
+# Builds and tests cpm-json with the latest CPM release, installed the way users install it, on Linux, macOS and
+# Windows.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  unix:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The runner has both GCC and Clang, and CPM would pick Clang; each gets a job.
+          - { name: Linux (GCC), os: ubuntu-24.04, toolchain: gcc }
+          - { name: Linux (Clang), os: ubuntu-24.04, toolchain: clang }
+          - { name: macOS, os: macos-latest, toolchain: apple-clang }
+    env:
+      TOOLCHAIN: ${{ matrix.toolchain }}
+    defaults:
+      run:
+        # A login shell, so later steps find cpm through the line install.sh adds to the profile.
+        shell: bash -elo pipefail {0}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install CPM
+        run: curl -fsSL https://cpm-registry.com/install.sh | CPM_NO_SETUP=1 sh
+      - name: cpm setup
+        run: |
+          cpm --version
+          cpm setup --yes
+          cpm toolchain list
+
+      - name: Test (strict warnings as errors)
+        run: cpm test --toolchain "$TOOLCHAIN" --profile strict
+      - name: Test (release)
+        run: cpm test --toolchain "$TOOLCHAIN" --release
+      - name: Test (AddressSanitizer and UBSan)
+        if: runner.os == 'Linux'
+        run: cpm test --toolchain "$TOOLCHAIN" --profile sanitize
+      - name: Test a project that uses cpm-json
+        run: cpm test --toolchain "$TOOLCHAIN" -C examples/consumer
+      - name: Pack for publishing
+        run: cpm publish --dry-run
+
+      - name: Upload CPM logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: logs-${{ matrix.name }}
+          path: ~/.cpm/logs
+          if-no-files-found: ignore
+
+  windows:
+    name: Windows
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      # WinLibs GCC reaches its headers through paths about 150 characters below its folder, and Windows limits
+      # paths to 260.
+      CPM_HOME: C:\cpm
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install CPM
+        run: |
+          $env:CPM_NO_SETUP = '1'
+          irm https://cpm-registry.com/install.ps1 | iex
+          Add-Content $env:GITHUB_PATH "$env:CPM_HOME\bin"
+      # --managed installs CPM's own WinLibs GCC rather than taking whichever MinGW the runner image has.
+      - name: cpm setup --managed
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          cpm --version
+          cpm setup --managed --yes
+          cpm toolchain list
+
+      - name: Test (strict warnings as errors)
+        run: cpm test --profile strict
+      - name: Test (release)
+        run: cpm test --release
+      - name: Test a project that uses cpm-json
+        run: cpm test -C examples/consumer
+      - name: Pack for publishing
+        run: cpm publish --dry-run
+
+      - name: Upload CPM logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: logs-${{ runner.os }}
+          path: C:\cpm\logs
+          if-no-files-found: ignore
