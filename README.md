@@ -84,7 +84,7 @@ json::Value v = json::Object{
 - `erase(key)` removes a member, keeping the others' order.
 - Iterating gives members, with `member.key()` and `member.value`. Values can be changed through it, keys can't.
 
-**Arrays** are `std::vector<json::Value>`.
+**Arrays** are `std::vector<json::Value>`. An array whose only element is an array needs `json::Array{json::Value(inner)}`, because some compilers read `json::Array{inner}` as a copy of `inner`.
 
 **Numbers** are exact for 64-bit integers and doubles otherwise. `to_integer<T>()` gives a whole number that fits in `T`, or `nullopt`. `to_double()` gives the nearest double.
 

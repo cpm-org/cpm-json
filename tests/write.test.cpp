@@ -38,7 +38,8 @@ TEST_CASE("indented text has one element or member per line") {
   "empty": [],
   "none": {}
 })");
-    CHECK(json::write(Value(Array{Array{1}}), {.indent = 4}) == "[\n    [\n        1\n    ]\n]");
+    // Array{Value(...)}: with a lone Array inside the braces, Array{Array{1}} is a copy of [1] on some compilers.
+    CHECK(json::write(Value(Array{Value(Array{1})}), {.indent = 4}) == "[\n    [\n        1\n    ]\n]");
     CHECK(json::write(Value(5), {.indent = 2}) == "5");
 }
 
