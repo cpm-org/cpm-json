@@ -106,3 +106,43 @@ jobs:
           name: logs-${{ runner.os }}
           path: C:\cpm\logs
           if-no-files-found: ignore
+
+  windows-msvc:
+    name: Windows (MSVC)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      CPM_HOME: C:\cpm
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install CPM
+        run: |
+          $env:CPM_NO_SETUP = '1'
+          irm https://cpm-registry.com/install.ps1 | iex
+          Add-Content $env:GITHUB_PATH "$env:CPM_HOME\bin"
+      # Visual Studio's MSVC, which the runner image has: CPM finds it and sets it up itself (CPM 0.4.8), with the
+      # Ninja that comes with Visual Studio.
+      - name: Choose MSVC
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          cpm --version
+          cpm toolchain use msvc
+          cpm toolchain list
+
+      - name: Test
+        run: cpm test
+      - name: Test (release)
+        run: cpm test --release
+      - name: Test a project that uses cpm-json
+        run: cpm test -C examples/consumer
+
+      - name: Upload CPM logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: logs-${{ runner.os }}-msvc
+          path: C:\cpm\logs
+          if-no-files-found: ignore
