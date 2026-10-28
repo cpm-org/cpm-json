@@ -53,8 +53,13 @@ jobs:
         run: cpm test --toolchain "$TOOLCHAIN" --profile sanitize
       - name: Test a project that uses cpm-json
         run: cpm test --toolchain "$TOOLCHAIN" -C examples/consumer
+      # Checks that the package packs. Once its version is on the registry, the dry run packs it and then says the
+      # version is already published: that isn't a failure until the next version is due. Any other error is.
       - name: Pack for publishing
-        run: cpm publish --dry-run
+        run: |
+          if out=$(cpm publish --dry-run 2>&1); then echo "$out"; exit 0; fi
+          echo "$out"
+          grep -q "is already published" <<< "$out"
 
       - name: Upload CPM logs
         if: failure()
@@ -96,8 +101,16 @@ jobs:
         run: cpm test --release
       - name: Test a project that uses cpm-json
         run: cpm test -C examples/consumer
+      # Checks that the package packs. Once its version is on the registry, the dry run packs it and then says the
+      # version is already published: that isn't a failure until the next version is due. Any other error is.
       - name: Pack for publishing
-        run: cpm publish --dry-run
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $out = cpm publish --dry-run 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          Write-Output $out
+          if ($code -ne 0 -and $out -notmatch 'is already published') { exit 1 }
+          exit 0
 
       - name: Upload CPM logs
         if: failure()
